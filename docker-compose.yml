@@ -1,0 +1,17 @@
+version: '2'
+services:
+    redis:
+        container_name: cache
+        image: redis
+        expose:
+            - 6379    
+    app:
+        build: ./
+        links:
+            - redis
+        ports:
+            - 3000:3000
+        environment:
+            - REDIS_URL=redis://cache
+            - PORT=3000
+            
