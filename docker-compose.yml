@@ -14,4 +14,8 @@ services:
         environment:
             - REDIS_URL=redis://cache
             - PORT=3000
+            - DBHOST=${DBHOST}
+            - DBPORT=${DBPORT}
+            - DBUSER=${DBUSER}
+            - DBPASS=${DBPASS}
             

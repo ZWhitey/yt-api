@@ -2,12 +2,34 @@ const express = require('express');
 const gamedig = require('gamedig');
 const { check, oneOf, validationResult } = require('express-validator');
 const redisClient = require('./redis-client');
+const mysql = require('mysql2');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+const con = mysql.createConnection({host:process.env.DBHOST, port:process.env.DBPORT, user: process.env.DBUSER, password: process.env.DBPASS, database: process.env.DBPLAYER});
+
 app.get('/', (req, res) => {
   res.send('Hello World!');
+});
+
+app.get('/player',[
+  check('steamid').matches(/^STEAM_(0|1):(0|1):\d+$/, 'g').withMessage('Invalid SteamID'),
+  check('limit').isInt({gt:0}).withMessage('limit should greater than 0')], async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    res.status(400).send({ errorMessages: errors.array() });
+    return;
+  }
+  const { steamid, limit } = req.query;
+  let sql = `SELECT * FROM player_analytics WHERE auth='${steamid}' limit ${limit}`;
+  try{
+    const [rows, fields] = await con.promise().query(sql);
+    res.send(rows);
+
+  }catch(err){
+    res.status(400).send(err.message);
+  }
 });
 
 app.get('/server', [
