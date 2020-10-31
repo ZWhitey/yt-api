@@ -39,6 +39,17 @@ app.get('/player', [
   }
 });
 
+app.get('/summary', async (req, res) => {
+  const sql = 'SELECT count(distinct(auth)) as unique_player,count(*) as total_record,count(distinct(country)) as unique_country FROM player_analytics';
+  try {
+    const [rows] = await con.promise().query(sql);
+    res.send(rows);
+  } catch (err) {
+    res.status(400).send(err.message);
+  }
+
+})
+
 app.get('/server', [
   oneOf([check('ip').isIP(), check('ip').isURL()], 'Invalid ip address or url'),
   check('port').isPort().withMessage('Invalid port number')], async (req, res) => {

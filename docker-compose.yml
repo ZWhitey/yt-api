@@ -10,7 +10,7 @@ services:
         links:
             - redis
         ports:
-            - 3000:3000
+            - 3001:3000
         environment:
             - REDIS_URL=redis://cache
             - PORT=3000
@@ -18,4 +18,5 @@ services:
             - DBPORT=${DBPORT}
             - DBUSER=${DBUSER}
             - DBPASS=${DBPASS}
+            - DBPLAYER=${DBPLAYER}
             
