@@ -1,10 +1,12 @@
 const express = require('express');
 const gamedig = require('gamedig');
 const { check, oneOf, validationResult } = require('express-validator');
-const redisClient = require('./redis-client');
 const mysql = require('mysql2');
+const redisClient = require('./redis-client');
 
 const app = express();
+app.set('view engine', 'pug');
+app.set('views', './views');
 const PORT = process.env.PORT || 3000;
 
 const con = mysql.createConnection(
@@ -18,7 +20,7 @@ const con = mysql.createConnection(
 );
 
 app.get('/', (req, res) => {
-  res.send('Hello World!');
+  res.render('index.pug', { title: 'My Dashboard', message: 'Hello World' });
 });
 
 app.get('/player', [
@@ -43,12 +45,11 @@ app.get('/summary', async (req, res) => {
   const sql = 'SELECT count(distinct(auth)) as unique_player,count(*) as total_record,count(distinct(country)) as unique_country FROM player_analytics';
   try {
     const [rows] = await con.promise().query(sql);
-    res.send(rows);
+    res.send(rows[0]);
   } catch (err) {
     res.status(400).send(err.message);
   }
-
-})
+});
 
 app.get('/server', [
   oneOf([check('ip').isIP(), check('ip').isURL()], 'Invalid ip address or url'),
