@@ -1,4 +1,5 @@
 const express = require('express');
+const cors = require('cors');
 const gamedig = require('gamedig');
 const { check, oneOf, validationResult } = require('express-validator');
 const mysql = require('mysql2');
@@ -7,6 +8,7 @@ const redisClient = require('./redis-client');
 const app = express();
 app.set('view engine', 'pug');
 app.set('views', './views');
+app.use(cors());
 const PORT = process.env.PORT || 3000;
 
 const con = mysql.createConnection(
