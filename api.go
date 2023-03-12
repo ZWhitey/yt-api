@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -9,6 +11,56 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gocolly/colly"
 )
+
+type Inventory struct {
+	Assets []struct {
+		Appid      int    `json:"appid"`
+		Contextid  string `json:"contextid"`
+		Assetid    string `json:"assetid"`
+		Classid    string `json:"classid"`
+		Instanceid string `json:"instanceid"`
+		Amount     string `json:"amount"`
+	} `json:"assets"`
+	Descriptions []struct {
+		Appid            int    `json:"appid"`
+		Classid          string `json:"classid"`
+		Instanceid       string `json:"instanceid"`
+		Currency         int    `json:"currency"`
+		Background_color string `json:"background_color"`
+		Icon_url         string `json:"icon_url"`
+		Icon_url_large   string `json:"icon_url_large"`
+		Descriptions     []struct {
+			Value string `json:"value"`
+			Color string `json:"color,omitempty"`
+		} `json:"descriptions"`
+		Tradable int `json:"tradable"`
+		Actions  []struct {
+			Link string `json:"link"`
+			Name string `json:"name"`
+		} `json:"actions"`
+		Name                          string `json:"name"`
+		Name_color                    string `json:"name_color"`
+		Type                          string `json:"type"`
+		Market_name                   string `json:"market_name"`
+		Market_hash_name              string `json:"market_hash_name"`
+		Commodity                     int    `json:"commodity"`
+		Market_tradable_restriction   int    `json:"market_tradable_restriction"`
+		Market_marketable_restriction int    `json:"market_marketable_restriction"`
+		Marketable                    int    `json:"marketable"`
+		Tags                          []struct {
+			Category                string `json:"category"`
+			Internal_name           string `json:"internal_name"`
+			Localized_category_name string `json:"localized_category_name"`
+			Localized_tag_name      string `json:"localized_tag_name"`
+			Color                   string `json:"color"`
+		} `json:"tags"`
+	} `json:"descriptions"`
+	More_items            int    `json:"more_items"`
+	Last_assetid          string `json:"last_assetid"`
+	Total_inventory_count int    `json:"total_inventory_count"`
+	Success               int    `json:"success"`
+	Rwgrsn                int    `json:"rwgrsn"`
+}
 
 func main() {
 	router := gin.Default()
@@ -23,14 +75,47 @@ func main() {
 }
 
 func getPriceHandler(c *gin.Context) {
-	resultChan := make(chan int)
-	go getPrice(resultChan)
-	price := <-resultChan
+	priceChan := make(chan int)
+	go getPrice(priceChan)
+	stockChan := make(chan int)
+	go getStock(stockChan)
+	price := <-priceChan
+	stock := <-stockChan
 	c.JSON(http.StatusOK, gin.H{
 		"price":  price,
-		"stock":  1000,
+		"stock":  stock,
 		"orders": 1000,
 	})
+}
+
+func getStock(resultChan chan<- int) {
+	url := "https://steamcommunity.com/inventory/76561198047686623/440/2?l=english&count=1000"
+
+	resp, err := http.Get(url)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		panic(err)
+	}
+
+	var inventory Inventory
+	err = json.Unmarshal(body, &inventory)
+	if err != nil {
+		panic(err)
+	}
+
+	count := 0
+	for _, item := range inventory.Assets {
+		if item.Classid == "101785959" {
+			count += 1
+		}
+
+	}
+	resultChan <- count
 }
 
 func getPrice(resultChan chan<- int) {
