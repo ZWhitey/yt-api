@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"regexp"
 	"strconv"
+	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -62,6 +64,20 @@ type Inventory struct {
 	Rwgrsn                int    `json:"rwgrsn"`
 }
 
+type BotStatus struct {
+	Price   int
+	Stock   int
+	Orders  int
+	Updated int64
+}
+
+var botStatusCache BotStatus = BotStatus{
+	Price:   0,
+	Stock:   0,
+	Orders:  0,
+	Updated: 0,
+}
+
 func main() {
 	router := gin.Default()
 	config := cors.DefaultConfig()
@@ -75,16 +91,23 @@ func main() {
 }
 
 func getPriceHandler(c *gin.Context) {
-	priceChan := make(chan int)
-	go getPrice(priceChan)
-	stockChan := make(chan int)
-	go getStock(stockChan)
-	price := <-priceChan
-	stock := <-stockChan
+	var now = time.Now().Unix()
+	if botStatusCache.Updated < now-60 {
+		priceChan := make(chan int)
+		go getPrice(priceChan)
+		stockChan := make(chan int)
+		go getStock(stockChan)
+		botStatusCache.Price = <-priceChan
+		botStatusCache.Stock = <-stockChan
+		botStatusCache.Orders = 1000
+		botStatusCache.Updated = now
+		fmt.Printf("Update cache to %+v\n", botStatusCache)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
-		"price":  price,
-		"stock":  stock,
-		"orders": 1000,
+		"price":  botStatusCache.Price,
+		"stock":  botStatusCache.Stock,
+		"orders": botStatusCache.Orders,
 	})
 }
 
