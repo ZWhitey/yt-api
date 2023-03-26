@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"time"
@@ -12,6 +15,9 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/gocolly/colly"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type Inventory struct {
@@ -78,7 +84,32 @@ var botStatusCache BotStatus = BotStatus{
 	Updated: 0,
 }
 
+var mgoClient *mongo.Client
+var db *mongo.Database
+
 func main() {
+
+	var username = os.Getenv("MONGO_USERNAME")
+	var password = os.Getenv("MONGO_PASSWORD")
+	connectionString := fmt.Sprintf("mongodb+srv://%s:%s@cluster0.bkfvo.mongodb.net/?retryWrites=true&w=majority", username, password)
+	serverAPIOptions := options.ServerAPI(options.ServerAPIVersion1)
+	clientOptions := options.Client().
+		ApplyURI(connectionString).
+		SetServerAPIOptions(serverAPIOptions)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	mgoClient, err := mongo.Connect(ctx, clientOptions)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	err = mgoClient.Ping(ctx, nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	db = mgoClient.Database("heroku_x68nnv7z")
+
 	router := gin.Default()
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{"http://127.0.0.1:5173"}
@@ -97,9 +128,11 @@ func getPriceHandler(c *gin.Context) {
 		go getPrice(priceChan)
 		stockChan := make(chan int)
 		go getStock(stockChan)
+		orderChan := make(chan int)
+		go getOrders(orderChan)
 		botStatusCache.Price = <-priceChan
 		botStatusCache.Stock = <-stockChan
-		botStatusCache.Orders = 1000
+		botStatusCache.Orders = <-orderChan
 		botStatusCache.Updated = now
 		fmt.Printf("Update cache to %+v\n", botStatusCache)
 	}
@@ -162,4 +195,18 @@ func getPrice(resultChan chan<- int) {
 	})
 
 	c.Visit("https://steamcommunity.com/id/Whitey_Keybot/")
+}
+
+func getOrders(resultChan chan<- int) {
+	var collection = db.Collection("orders")
+	cond := bson.M{
+		"OrderStatus.TradeStatus": "1",
+	}
+	count, err := collection.CountDocuments(context.TODO(), &cond)
+	if err != nil {
+		log.Fatal(err)
+		// 處理錯誤
+	}
+	print(count)
+	resultChan <- int(count)
 }
