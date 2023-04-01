@@ -112,7 +112,7 @@ func main() {
 
 	router := gin.Default()
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://127.0.0.1:5173"}
+	config.AllowOrigins = []string{"http://127.0.0.1:5173", "https://tf2key.whitey.me"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	router.Use(cors.New(config))
 
