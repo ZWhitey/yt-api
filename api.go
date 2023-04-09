@@ -149,19 +149,25 @@ func getStock(resultChan chan<- int) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		fmt.Println("Error occurred while sending request:", err)
+		resultChan <- botStatusCache.Stock // indicate error to the caller
+		return
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		panic(err)
+		fmt.Println("Error occurred while reading response body:", err)
+		resultChan <- botStatusCache.Stock // indicate error to the caller
+		return
 	}
 
 	var inventory Inventory
 	err = json.Unmarshal(body, &inventory)
 	if err != nil {
-		panic(err)
+		fmt.Println("Error occurred while unmarshaling JSON:", err)
+		resultChan <- botStatusCache.Stock // indicate error to the caller
+		return
 	}
 
 	count := 0
@@ -183,9 +189,12 @@ func getPrice(resultChan chan<- int) {
 		matches := re.FindStringSubmatch(e.Text)
 		if len(matches) > 1 {
 			price, err := strconv.Atoi(matches[1])
-			if err == nil {
-				resultChan <- price
+			if err != nil {
+				fmt.Println("Error occurred while parsing price:", err)
+				resultChan <- botStatusCache.Price
+				return
 			}
+			resultChan <- price
 		}
 
 	})
@@ -204,9 +213,9 @@ func getOrders(resultChan chan<- int) {
 	}
 	count, err := collection.CountDocuments(context.TODO(), &cond)
 	if err != nil {
-		log.Fatal(err)
-		// 處理錯誤
+		fmt.Println("Error occurred while reading orders:", err)
+		resultChan <- botStatusCache.Orders
+		return
 	}
-	print(count)
 	resultChan <- int(count)
 }
