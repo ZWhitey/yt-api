@@ -10,6 +10,7 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
@@ -121,9 +122,14 @@ func main() {
 	router.Run(":8080")
 }
 
+var mutex = &sync.Mutex{}
+
 func getPriceHandler(c *gin.Context) {
 	var now = time.Now().Unix()
-	if botStatusCache.Updated < now-60 {
+
+	mutex.Lock()
+	defer mutex.Unlock()
+	if botStatusCache.Updated < now-300 {
 		priceChan := make(chan int)
 		go getPrice(priceChan)
 		stockChan := make(chan int)
