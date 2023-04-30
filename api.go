@@ -7,15 +7,21 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/gin-contrib/cors"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/gocolly/colly"
+	"github.com/golang-jwt/jwt/v5"
+	_ "github.com/joho/godotenv/autoload"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -88,6 +94,8 @@ var botStatusCache BotStatus = BotStatus{
 var mgoClient *mongo.Client
 var db *mongo.Database
 
+var jwtKey = []byte(os.Getenv("JWT_SECRET"))
+
 func main() {
 
 	var username = os.Getenv("MONGO_USERNAME")
@@ -117,9 +125,137 @@ func main() {
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	router.Use(cors.New(config))
 
+	authMiddleware := func() gin.HandlerFunc {
+		return func(c *gin.Context) {
+			session := sessions.Default(c)
+			if session.Get("session") == nil {
+				session.Delete("session")
+				session.Save()
+				c.AbortWithStatusJSON(401, gin.H{"error": "authentication required"})
+				return
+			}
+			tokenString := session.Get("session").(string)
+			token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, jwt.ErrSignatureInvalid
+				}
+				return jwtKey, nil
+			})
+			if err != nil {
+				log.Println("Parse jwt error:", err.Error())
+				session.Delete("session")
+				session.Save()
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+				return
+			}
+
+			if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
+				c.Set("steamID", claims["steamID"])
+			} else {
+				log.Println("Invalid jwt token", token.Raw)
+				session.Delete("session")
+				session.Save()
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+				return
+			}
+
+			c.Next()
+		}
+	}
+
+	store := cookie.NewStore([]byte("key"))
+	store.Options(sessions.Options{
+		Domain: ".whitey.me",
+	})
+	router.Use(sessions.Sessions("session", store))
+
 	router.GET("/api/v1/bot/status", getPriceHandler)
+	router.GET("/auth", authHandler)
+	router.GET("/api/v1/orders", authMiddleware(), orderHandler)
 
 	router.Run(":8080")
+}
+
+func orderHandler(c *gin.Context) {
+	steamID, exist := c.Get("steamID")
+	if exist {
+		c.JSON(http.StatusOK, gin.H{
+			"id": steamID,
+		})
+		return
+	}
+	c.AbortWithStatusJSON(401, gin.H{"error": "authentication required"})
+}
+
+func authHandler(c *gin.Context) {
+	session := sessions.Default(c)
+	ns := c.Query("openid.ns")
+	claimedID := c.Query("openid.claimed_id")
+	identity := c.Query("openid.identity")
+	returnTo := c.Query("openid.return_to")
+	nonce := c.Query("openid.response_nonce")
+	assocHandle := c.Query("openid.assoc_handle")
+	signedParams := c.Query("openid.signed")
+	signature := c.Query("openid.sig")
+
+	params := url.Values{}
+	params.Set("openid.ns", ns)
+	params.Set("openid.mode", "check_authentication")
+	params.Set("openid.op_endpoint", "https://steamcommunity.com/openid/login")
+	params.Set("openid.claimed_id", claimedID)
+	params.Set("openid.identity", identity)
+	params.Set("openid.return_to", returnTo)
+	params.Set("openid.response_nonce", nonce)
+	params.Set("openid.assoc_handle", assocHandle)
+	params.Set("openid.signed", signedParams)
+	params.Set("openid.sig", signature)
+
+	// 發送 POST 請求
+	resp, err := http.PostForm("https://steamcommunity.com/openid/login", params)
+	if err != nil {
+		log.Println("Check Steam openid error:", err)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// 讀取回應內容
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("Parse Steam openid response error:", err)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// check is_valid:true
+	if !strings.Contains(string(body), "is_valid:true") {
+		log.Println("Invalid openid data:", string(body))
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	// 解析 Steam ID
+	steamID := strings.TrimPrefix(identity, "https://steamcommunity.com/openid/id/")
+	if steamID == "" {
+		log.Println("Cannot find steamID:", identity)
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+
+	token := jwt.New(jwt.SigningMethodHS256)
+	claims := token.Claims.(jwt.MapClaims)
+	claims["steamID"] = steamID
+	claims["exp"] = time.Now().Add(time.Hour * 168).Unix() // 1 week
+	sessionKey, err := token.SignedString(jwtKey)
+	if err != nil {
+		session.Delete("session")
+		session.Save()
+		c.AbortWithStatus(http.StatusUnauthorized)
+		return
+	}
+	session.Set("session", sessionKey)
+	session.Save()
+
+	c.Redirect(http.StatusFound, "https://tf2key.whitey.me/")
 }
 
 var mutex = &sync.Mutex{}
@@ -140,7 +276,7 @@ func getPriceHandler(c *gin.Context) {
 		botStatusCache.Stock = <-stockChan
 		botStatusCache.Orders = <-orderChan
 		botStatusCache.Updated = now
-		fmt.Printf("Update cache to %+v\n", botStatusCache)
+		log.Printf("Update cache to %+v\n", botStatusCache)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -158,7 +294,7 @@ func getStock(resultChan chan<- int) {
 
 	resp, err := http.Get(url)
 	if err != nil {
-		fmt.Println("Error occurred while sending request:", err)
+		log.Println("Error occurred while sending request:", err)
 		resultChan <- botStatusCache.Stock // indicate error to the caller
 		return
 	}
@@ -166,7 +302,7 @@ func getStock(resultChan chan<- int) {
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Error occurred while reading response body:", err)
+		log.Println("Error occurred while reading response body:", err)
 		resultChan <- botStatusCache.Stock // indicate error to the caller
 		return
 	}
@@ -174,7 +310,7 @@ func getStock(resultChan chan<- int) {
 	var inventory Inventory
 	err = json.Unmarshal(body, &inventory)
 	if err != nil {
-		fmt.Println("Error occurred while unmarshaling JSON:", err)
+		log.Println("Error occurred while unmarshaling JSON:", err)
 		resultChan <- botStatusCache.Stock // indicate error to the caller
 		return
 	}
@@ -199,7 +335,7 @@ func getPrice(resultChan chan<- int) {
 		if len(matches) > 1 {
 			price, err := strconv.Atoi(matches[1])
 			if err != nil {
-				fmt.Println("Error occurred while parsing price:", err)
+				log.Println("Error occurred while parsing price:", err)
 				resultChan <- botStatusCache.Price
 				return
 			}
@@ -222,7 +358,7 @@ func getOrders(resultChan chan<- int) {
 	}
 	count, err := collection.CountDocuments(context.TODO(), &cond)
 	if err != nil {
-		fmt.Println("Error occurred while reading orders:", err)
+		log.Println("Error occurred while reading orders:", err)
 		resultChan <- botStatusCache.Orders
 		return
 	}
