@@ -300,8 +300,6 @@ func updateStatusCache() {
 }
 
 func getStock(resultChan chan<- int) {
-	resultChan <- botStatusCache.Stock
-
 	url := "https://steamcommunity.com/inventory/76561198047686623/440/2?l=english&count=1000"
 
 	resp, err := http.Get(url)
