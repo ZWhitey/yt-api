@@ -98,6 +98,12 @@ var jwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 func main() {
 
+	port := "8080"
+
+	if os.Getenv("PORT") != "" {
+		port = os.Getenv("PORT")
+	}
+
 	var username = os.Getenv("MONGO_USERNAME")
 	var password = os.Getenv("MONGO_PASSWORD")
 	connectionString := fmt.Sprintf("mongodb+srv://%s:%s@cluster0.bkfvo.mongodb.net/?retryWrites=true&w=majority", username, password)
@@ -173,7 +179,7 @@ func main() {
 	router.GET("/auth", authHandler)
 	router.GET("/api/v1/orders", authMiddleware(), orderHandler)
 
-	router.Run(":8080")
+	router.Run(":" + port)
 	updateStatusCache()
 }
 
