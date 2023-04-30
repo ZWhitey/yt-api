@@ -174,6 +174,7 @@ func main() {
 	router.GET("/api/v1/orders", authMiddleware(), orderHandler)
 
 	router.Run(":8080")
+	updateStatusCache()
 }
 
 func orderHandler(c *gin.Context) {
