@@ -129,6 +129,7 @@ func main() {
 	config := cors.DefaultConfig()
 	config.AllowOrigins = []string{"http://local.whitey.me:5173", "https://local.whitey.me:5173", "https://tf2key.whitey.me"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
+	config.AllowCredentials = true
 	router.Use(cors.New(config))
 
 	authMiddleware := func() gin.HandlerFunc {
