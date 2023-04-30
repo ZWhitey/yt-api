@@ -172,7 +172,10 @@ func main() {
 
 	store := cookie.NewStore([]byte("key"))
 	store.Options(sessions.Options{
-		Domain: ".whitey.me",
+		Domain:   ".whitey.me",
+		SameSite: http.SameSiteNoneMode,
+		Secure:   true,
+		HttpOnly: true,
 	})
 	router.Use(sessions.Sessions("session", store))
 
