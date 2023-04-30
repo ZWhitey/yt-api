@@ -261,24 +261,8 @@ func authHandler(c *gin.Context) {
 var mutex = &sync.Mutex{}
 
 func getPriceHandler(c *gin.Context) {
-	var now = time.Now().Unix()
 
-	mutex.Lock()
-	defer mutex.Unlock()
-	if botStatusCache.Updated < now-300 {
-		priceChan := make(chan int)
-		go getPrice(priceChan)
-		stockChan := make(chan int)
-		go getStock(stockChan)
-		orderChan := make(chan int)
-		go getOrders(orderChan)
-		botStatusCache.Price = <-priceChan
-		botStatusCache.Stock = <-stockChan
-		botStatusCache.Orders = <-orderChan
-		botStatusCache.Updated = now
-		log.Printf("Update cache to %+v\n", botStatusCache)
-	}
-
+	updateStatusCache()
 	c.JSON(http.StatusOK, gin.H{
 		"price":  botStatusCache.Price,
 		"stock":  botStatusCache.Stock,
@@ -286,9 +270,30 @@ func getPriceHandler(c *gin.Context) {
 	})
 }
 
+func updateStatusCache() {
+	now := time.Now().Unix()
+	mutex.Lock()
+	defer mutex.Unlock()
+	if botStatusCache.Updated+300 > now {
+		return
+	}
+	log.Println("Start update cache")
+
+	priceChan := make(chan int)
+	go getPrice(priceChan)
+	stockChan := make(chan int)
+	go getStock(stockChan)
+	orderChan := make(chan int)
+	go getOrders(orderChan)
+	botStatusCache.Price = <-priceChan
+	botStatusCache.Stock = <-stockChan
+	botStatusCache.Orders = <-orderChan
+	botStatusCache.Updated = time.Now().Unix()
+	log.Printf("Update cache to %+v\n", botStatusCache)
+}
+
 func getStock(resultChan chan<- int) {
 	resultChan <- botStatusCache.Stock
-	return
 
 	url := "https://steamcommunity.com/inventory/76561198047686623/440/2?l=english&count=1000"
 
