@@ -49,3 +49,27 @@ type Inventory struct {
 	Success               int    `json:"success"`
 	Rwgrsn                int    `json:"rwgrsn"`
 }
+
+type ProfileResponse struct {
+	Response struct {
+		Players []struct {
+			SteamID             string `json:"steamid"`
+			CommunityVisibility int    `json:"communityvisibilitystate"`
+			ProfileState        int    `json:"profilestate"`
+			PersonaName         string `json:"personaname"`
+			ProfileURL          string `json:"profileurl"`
+			Avatar              string `json:"avatar"`
+			AvatarMedium        string `json:"avatarmedium"`
+			AvatarFull          string `json:"avatarfull"`
+			AvatarHash          string `json:"avatarhash"`
+			PersonaState        int    `json:"personastate"`
+			RealName            string `json:"realname"`
+			PrimaryClanID       string `json:"primaryclanid"`
+			TimeCreated         int    `json:"timecreated"`
+			PersonaStateFlags   int    `json:"personastateflags"`
+			LoccountryCode      string `json:"loccountrycode"`
+			LocStateCode        string `json:"locstatecode"`
+			LoccityID           int    `json:"loccityid"`
+		} `json:"players"`
+	} `json:"response"`
+}

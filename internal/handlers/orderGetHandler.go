@@ -25,7 +25,7 @@ type order struct {
 	}
 }
 
-func OrderHandler(c *gin.Context) {
+func GetOrderHandler(c *gin.Context) {
 	steamID, exist := c.Get("steamID")
 	if !exist {
 		c.AbortWithStatusJSON(401, gin.H{"error": "authentication required"})
