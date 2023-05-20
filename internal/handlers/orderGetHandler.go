@@ -17,6 +17,7 @@ type order struct {
 	Price       int
 	Count       int
 	OrderStatus struct {
+		Amt         int
 		TradeNo     string
 		PayInfo     string
 		PaymentType string
