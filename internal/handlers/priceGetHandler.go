@@ -26,6 +26,7 @@ var botStatusCache BotStatus = BotStatus{
 	Stock:   0,
 	Orders:  0,
 	Updated: 0,
+	MarketPrice: 0,
 }
 
 func GetPriceHandler(c *gin.Context) {
@@ -35,6 +36,7 @@ func GetPriceHandler(c *gin.Context) {
 		"price":  botStatusCache.Price,
 		"stock":  botStatusCache.Stock,
 		"orders": botStatusCache.Orders,
+		"marketPrice": botStatusCache.MarketPrice,
 	})
 }
 
@@ -53,9 +55,12 @@ func UpdateStatusCache() {
 	go getStock(stockChan)
 	orderChan := make(chan int)
 	go getOrders(orderChan)
+	marketPriceChan := make(chan int)
+	go getMarketPrice(marketPriceChan)
 	botStatusCache.Price = <-priceChan
 	botStatusCache.Stock = <-stockChan
 	botStatusCache.Orders = <-orderChan
+	botStatusCache.MarketPrice = <-marketPriceChan
 	botStatusCache.Updated = time.Now().Unix()
 	log.Printf("Update cache to %+v\n", botStatusCache)
 }
@@ -134,4 +139,42 @@ func getOrders(resultChan chan<- int) {
 		return
 	}
 	resultChan <- int(count)
+}
+
+func getMarketPrice(resultChan chan<- int) {
+	url := "https://steamcommunity.com/market/itemordershistogram?country=TW&language=tchinese&currency=30&item_nameid=1&two_factor=0"
+
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Println("Error occurred while sending request:", err)
+		resultChan <- botStatusCache.MarketPrice // indicate error to the caller
+		return
+	}
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Println("Error occurred while reading response body:", err)
+		resultChan <- botStatusCache.MarketPrice // indicate error to the caller
+		return
+	}
+
+	var item MarketItem
+	err = json.Unmarshal(body, &item)
+	if err != nil {
+		log.Println("Error occurred while unmarshaling JSON:", err)
+		resultChan <- botStatusCache.MarketPrice // indicate error to the caller
+		return
+	}
+
+	price, err := strconv.Atoi(item.LowestSellOrder)
+  if err != nil {
+      log.Println("Error:", err)
+			resultChan <- botStatusCache.MarketPrice // indicate error to the caller
+      return
+  }
+
+
+
+	resultChan <- price
 }

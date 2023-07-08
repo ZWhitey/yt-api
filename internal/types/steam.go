@@ -73,3 +73,18 @@ type ProfileResponse struct {
 		} `json:"players"`
 	} `json:"response"`
 }
+
+type MarketItem struct {
+	Success           int    `json:"success"`
+	SellOrderTable    string `json:"sell_order_table"`
+	SellOrderSummary  string `json:"sell_order_summary"`
+	BuyOrderTable     string `json:"buy_order_table"`
+	BuyOrderSummary   string `json:"buy_order_summary"`
+	HighestBuyOrder   string `json:"highest_buy_order"`
+	LowestSellOrder   string `json:"lowest_sell_order"`
+	GraphMaxY int `json:"graph_max_y"`
+	GraphMinY float64 `json:"graph_min_y"`
+	GraphMaxX float64 `json:"graph_max_x"`
+	PricePrefix string `json:"price_prefix"`
+	PriceSuffix string `json:"price_suffix"`
+}

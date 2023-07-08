@@ -5,4 +5,5 @@ type BotStatus struct {
 	Stock   int
 	Orders  int
 	Updated int64
+	MarketPrice int
 }
