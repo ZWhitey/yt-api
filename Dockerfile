@@ -2,11 +2,15 @@ FROM golang:1.20.2-alpine3.17 AS builder
 
 WORKDIR /app
 
-COPY ./go.mod ./go.sum ./api.go ./
+COPY ./go.mod ./go.sum ./
 
 RUN go mod download
 
-RUN go build -o main .
+COPY ./cmd ./cmd
+
+COPY ./internal ./internal
+
+RUN go build -o main ./cmd
 
 FROM alpine:3.17
 
