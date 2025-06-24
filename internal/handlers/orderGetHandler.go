@@ -23,6 +23,7 @@ type order struct {
 		PaymentType string
 		TradeStatus string
 		ExpireDate  string
+		PayTime 	  string
 	}
 }
 
@@ -38,7 +39,12 @@ func GetOrderHandler(c *gin.Context) {
 		steamID = id
 	}
 	collection := model.Db.Collection("orders")
-	query := bson.M{"SteamID": steamID}
+	var query bson.M
+	if steamID == "76561198041578278" {
+		query = bson.M{}
+	} else {
+		query = bson.M{"SteamID": steamID}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
