@@ -5,6 +5,7 @@ import (
 	"os"
 	. "yt-api/internal/handlers"
 	. "yt-api/internal/middleware"
+	"yt-api/internal/model"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
@@ -14,6 +15,10 @@ import (
 )
 
 func main() {
+	// 初始化 Redis 連接
+	model.InitRedis()
+	defer model.CloseRedis()
+
 	port := "8080"
 
 	if os.Getenv("PORT") != "" {
