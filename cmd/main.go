@@ -45,6 +45,7 @@ func main() {
 	router.GET("/auth", AuthHandler)
 	router.GET("/api/v1/orders", AuthMiddleware, GetOrderHandler)
 	router.GET("api/v1/user", AuthMiddleware, GetProfileHandler)
+	router.POST("/api/v1/payment/cb", PaymentCallbackHandler)
 
 	router.Run(":" + port)
 	UpdateStatusCache()
