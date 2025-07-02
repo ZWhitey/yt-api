@@ -9,6 +9,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 )
 
 var mgoClient *mongo.Client
@@ -33,5 +34,11 @@ func init() {
 		log.Fatal(err)
 	}
 
-	Db = mgoClient.Database("heroku_x68nnv7z")
+	cs, err := connstring.ParseAndValidate(connectionString)
+	if err != nil {
+		log.Fatal(err)
+	}
+	log.Println("Connected to MongoDB:", cs.Hosts, cs.Database)
+
+	Db = mgoClient.Database(cs.Database)
 }
