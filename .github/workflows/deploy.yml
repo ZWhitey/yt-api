@@ -1,0 +1,38 @@
+name: Deploy
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate version (date + run number)
+        id: version
+        run: |
+          DATE=$(date +'%Y%m%d')
+          NUM=$(printf "%02d" $(( $GITHUB_RUN_NUMBER % 100 )))
+          VERSION="$DATE-$NUM"
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          go build -ldflags "-X main.Version=${{ env.VERSION }}"
+
+      - name: Build Docker image
+        run: |
+          docker build -t zwhitey/yt-api:${{ env.VERSION }} .
+
+      - name: Push Docker image
+        run: |
+          echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          docker push zwhitey/yt-api:${{ env.VERSION }}
+
+      - name: Deploy to server
+        run: |
+          IMG_URL=$(echo "docker.io/zwhitey/yt-api:${{ env.VERSION }}" | jq -sRr @uri)
+          curl "${{ secrets.RENDER_HOOK_KEY }}&imgURL=${IMG_URL}"
