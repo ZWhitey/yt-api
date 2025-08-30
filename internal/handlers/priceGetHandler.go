@@ -15,26 +15,29 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 )
 
 var mutex = &sync.Mutex{}
 
 var botStatusCache BotStatus = BotStatus{
-	Price:       0,
-	Stock:       0,
-	Orders:      0,
-	Updated:     0,
-	MarketPrice: 0,
+	Price:        0,
+	Stock:        0,
+	Orders:       0,
+	Updated:      0,
+	MarketPrice:  0,
+	Transcations: 0,
 }
 
 func GetPriceHandler(c *gin.Context) {
 
 	UpdateStatusCache()
 	c.JSON(http.StatusOK, gin.H{
-		"price":       botStatusCache.Price,
-		"stock":       botStatusCache.Stock,
-		"orders":      botStatusCache.Orders,
-		"marketPrice": botStatusCache.MarketPrice,
+		"price":        botStatusCache.Price,
+		"stock":        botStatusCache.Stock,
+		"orders":       botStatusCache.Orders,
+		"marketPrice":  botStatusCache.MarketPrice,
+		"transactions": botStatusCache.Transcations,
 	})
 }
 
@@ -55,10 +58,15 @@ func UpdateStatusCache() {
 	go getOrders(orderChan)
 	marketPriceChan := make(chan int)
 	go getMarketPrice(marketPriceChan)
+	transactionChan := make(chan int)
+	go getTransactions(transactionChan)
+
 	botStatusCache.Price = <-priceChan
 	botStatusCache.Stock = <-stockChan
 	botStatusCache.Orders = <-orderChan
 	botStatusCache.MarketPrice = <-marketPriceChan
+	botStatusCache.Transcations = <-transactionChan
+
 	botStatusCache.Updated = time.Now().Unix()
 	log.Printf("Update cache to %+v\n", botStatusCache)
 }
@@ -113,12 +121,76 @@ func getOrders(resultChan chan<- int) {
 		"OrderStatus.TradeStatus": "1",
 	}
 	count, err := collection.CountDocuments(context.TODO(), &cond)
-	if err != nil {
+
+	condV2 := bson.M{
+		"OrderStatus.Amt": bson.M{
+			"$exists": true,
+		},
+	}
+
+	countV2, errV2 := model.Db.Collection("orderv2").CountDocuments(context.TODO(), &condV2)
+
+	if err != nil || errV2 != nil {
 		log.Println("Error occurred while reading orders:", err)
+		log.Println("Error occurred while reading orderv2:", errV2)
 		resultChan <- botStatusCache.Orders
 		return
 	}
-	resultChan <- int(count)
+	resultChan <- int(count + countV2)
+}
+
+func getTransactions(resultChan chan<- int) {
+	ctx := context.TODO()
+
+	userTotal := 0
+	transTotal := 0
+
+	// Step 1: aggregate from "users"
+	aggregation := mongo.Pipeline{
+		bson.D{{Key: "$unwind", Value: bson.D{{Key: "path", Value: "$Transaction"}}}},
+		bson.D{{Key: "$match", Value: bson.D{{Key: "Transaction.Traded", Value: true}}}},
+		bson.D{{Key: "$group", Value: bson.D{
+			{Key: "_id", Value: nil},
+			{Key: "total", Value: bson.D{{Key: "$sum", Value: "$Transaction.Count"}}},
+		}}},
+	}
+
+	if userCur, err := model.Db.Collection("users").Aggregate(ctx, aggregation); err == nil {
+		defer userCur.Close(ctx)
+		if userCur.Next(ctx) {
+			var res struct {
+				Total int `bson:"total"`
+			}
+			if decodeErr := userCur.Decode(&res); decodeErr != nil {
+				log.Println("Error decoding user aggregation:", decodeErr)
+			} else {
+				userTotal = res.Total
+			}
+		}
+	} else {
+		log.Println("Error aggregating users:", err)
+	}
+
+	// Step 2: sum from "transactions"
+	cond := bson.M{"traded": true}
+	if transCur, err := model.Db.Collection("transcations").Find(ctx, cond); err == nil {
+		defer transCur.Close(ctx)
+		for transCur.Next(ctx) {
+			var t struct {
+				Count int `bson:"Count"`
+			}
+			if decodeErr := transCur.Decode(&t); decodeErr != nil {
+				log.Println("Error decoding transaction:", decodeErr)
+				continue
+			}
+			transTotal += t.Count
+		}
+	} else {
+		log.Println("Error querying transactions:", err)
+	}
+
+	// Step 3: return both totals summed
+	resultChan <- userTotal + transTotal
 }
 
 func getMarketPrice(resultChan chan<- int) {
