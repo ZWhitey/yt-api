@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 type orderv2 struct {
@@ -91,7 +92,9 @@ func GetOrderV2Handler(c *gin.Context) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	cursor, err := collection.Find(ctx, &query)
+	cursor, err := collection.Find(ctx, &query, &options.FindOptions{
+		Sort: bson.D{{Key: "OrderStatus.Data_id", Value: -1}},
+	})
 	if err != nil {
 		log.Println("Error occurred while finding orders:", err)
 		c.AbortWithStatusJSON(500, gin.H{"error": "internal server error"})
