@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt"
 	_ "github.com/joho/godotenv/autoload"
@@ -18,7 +17,6 @@ import (
 var jwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 func AuthHandler(c *gin.Context) {
-	session := sessions.Default(c)
 	ns := c.Query("openid.ns")
 	claimedID := c.Query("openid.claimed_id")
 	identity := c.Query("openid.identity")
@@ -77,13 +75,20 @@ func AuthHandler(c *gin.Context) {
 	claims["exp"] = time.Now().Add(time.Hour * 168).Unix() // 1 week
 	sessionKey, err := token.SignedString(jwtKey)
 	if err != nil {
-		session.Delete("session")
-		session.Save()
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	session.Set("session", sessionKey)
-	session.Save()
+	
+	// 直接設置 cookie
+	c.SetCookie(
+		"session",        // name
+		sessionKey,       // value
+		60*60*24*7,      // maxAge (1 week in seconds)
+		"/",             // path
+		".whitey.me",    // domain
+		true,            // secure
+		true,            // httpOnly
+	)
 
 	c.Redirect(http.StatusFound, "https://tf2key.whitey.me/")
 }
