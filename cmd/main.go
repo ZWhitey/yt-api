@@ -32,7 +32,7 @@ func main() {
 	config.AllowCredentials = true
 	router.Use(cors.New(config))
 
-	store := cookie.NewStore([]byte("key"))
+	store := cookie.NewStore([]byte("key"), nil)
 	store.Options(sessions.Options{
 		Domain:   ".whitey.me",
 		SameSite: http.SameSiteNoneMode,
