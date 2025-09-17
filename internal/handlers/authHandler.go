@@ -78,16 +78,16 @@ func AuthHandler(c *gin.Context) {
 		c.AbortWithStatus(http.StatusUnauthorized)
 		return
 	}
-	
+
 	// 直接設置 cookie
 	c.SetCookie(
-		"session",        // name
-		sessionKey,       // value
-		60*60*24*7,      // maxAge (1 week in seconds)
-		"/",             // path
-		".whitey.me",    // domain
-		true,            // secure
-		true,            // httpOnly
+		"session",    // name
+		sessionKey,   // value
+		60*60*24*7,   // maxAge (1 week in seconds)
+		"/",          // path
+		".whitey.me", // domain
+		true,         // secure
+		true,         // httpOnly
 	)
 
 	c.Redirect(http.StatusFound, "https://tf2key.whitey.me/")

@@ -24,7 +24,7 @@ func main() {
 
 	router := gin.Default()
 	config := cors.DefaultConfig()
-	config.AllowOrigins = []string{"http://local.whitey.me:5173", "https://local.whitey.me:5173", "https://tf2key.whitey.me"}
+	config.AllowOrigins = []string{"http://local.whitey.me:5173", "https://local.whitey.me:5173", "https://tf2key.whitey.me", "http://localhost:3000"}
 	config.AllowMethods = []string{"GET", "POST", "PUT", "DELETE"}
 	config.AllowCredentials = true
 	router.Use(cors.New(config))
@@ -33,6 +33,7 @@ func main() {
 	router.GET("/auth", AuthHandler)
 	router.GET("/api/v1/orders", AuthMiddleware, GetOrderHandler)
 	router.GET("/api/v2/orders", AuthMiddleware, GetOrderV2Handler)
+	router.GET("/api/v2/orders/:id", AuthMiddleware, GetOrderV2ByIDHandler)
 	router.GET("api/v1/user", AuthMiddleware, GetProfileHandler)
 	router.POST("/api/v1/payment/cb", PaymentCallbackHandler)
 

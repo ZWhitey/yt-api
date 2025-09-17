@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"yt-api/internal/model"
+	"yt-api/internal/utils"
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
@@ -44,6 +45,11 @@ type orderV2Response struct {
 	PayDate   string `json:"PayDate,omitempty"`
 	PayMethod string `json:"PayMethod"`
 	Status    string `json:"Status"`
+}
+
+type orderV2DetailResponse struct {
+	orderV2Response
+	Username string `json:"Username"`
 }
 
 type Status string
@@ -147,4 +153,82 @@ func GetOrderV2Handler(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"orders": responseOrders,
 	})
+}
+
+func GetOrderV2ByIDHandler(c *gin.Context) {
+	steamID, exist := c.Get("steamID")
+	if !exist {
+		c.AbortWithStatusJSON(401, gin.H{"error": "authentication required"})
+		return
+	}
+
+	if !ADMIN_STEAM_ID_SET[steamID.(string)] {
+		c.AbortWithStatusJSON(403, gin.H{"error": "forbidden"})
+		return
+	}
+
+	orderID := c.Param("id")
+	if orderID == "" {
+		c.AbortWithStatusJSON(400, gin.H{"error": "order ID is required"})
+		return
+	}
+
+	collection := model.Db.Collection("orderv2")
+	query := bson.M{"OrderStatus.Data_id": orderID}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var order orderv2
+	err := collection.FindOne(ctx, query).Decode(&order)
+	if err != nil {
+		log.Println("Error occurred while finding order:", err)
+		if err.Error() == "mongo: no documents in result" {
+			c.AbortWithStatusJSON(404, gin.H{"error": "order not found"})
+			return
+		}
+		c.AbortWithStatusJSON(500, gin.H{"error": "internal server error"})
+		return
+	}
+
+	status := StatusUnpaid
+	var payDate string
+
+	payEndDate, err := time.Parse("2006/01/02 15:04:05", order.OrderStatus.PayEndDate)
+	if err != nil {
+		log.Println("Error parsing PayEndDate:", err)
+		payEndDate = time.Time{} // 設定為零值，表示無效日期
+	}
+
+	if order.OrderStatus.Amt == order.OrderStatus.Amount {
+		status = StatusPaid
+		payDate = order.OrderStatus.ProcessDate + " " + order.OrderStatus.ProcessTime
+	} else if payEndDate.Before(time.Now()) {
+		status = StatusExpired
+	}
+
+	profile, err := utils.GetProfileFromSteam(order.SteamID)
+	username := ""
+	if err != nil {
+		log.Println("Error fetching profile from Steam:", err)
+	} else {
+		username = profile.Response.Players[0].PersonaName
+	}
+
+	responseOrder := orderV2DetailResponse{
+		orderV2Response: orderV2Response{
+			SteamID:   order.SteamID,
+			Price:     order.Price,
+			Count:     order.Count,
+			Amount:    order.OrderStatus.Amount,
+			OrderId:   order.OrderStatus.DataID,
+			OrderDate: parseDateTime(order.OrderStatus.DataID),
+			PayDate:   payDate,
+			PayMethod: order.OrderStatus.PayMethod,
+			Status:    string(status),
+		},
+		Username: username,
+	}
+
+	c.JSON(http.StatusOK, responseOrder)
 }

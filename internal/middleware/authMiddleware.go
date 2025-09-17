@@ -19,7 +19,7 @@ func AuthMiddleware(c *gin.Context) {
 		c.AbortWithStatusJSON(401, gin.H{"error": "authentication required"})
 		return
 	}
-	
+
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, jwt.ErrSignatureInvalid
