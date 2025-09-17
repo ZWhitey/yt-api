@@ -44,6 +44,7 @@ func main() {
 	router.GET("/api/v1/bot/status", GetPriceHandler)
 	router.GET("/auth", AuthHandler)
 	router.GET("/api/v1/orders", AuthMiddleware, GetOrderHandler)
+	router.GET("/api/v2/orders", AuthMiddleware, GetOrderV2Handler)
 	router.GET("api/v1/user", AuthMiddleware, GetProfileHandler)
 	router.POST("/api/v1/payment/cb", PaymentCallbackHandler)
 
