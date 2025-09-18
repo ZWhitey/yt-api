@@ -167,12 +167,23 @@ func getUserTradedAmount(steamID string) (tradedAmount int, err error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	count, err := collection.CountDocuments(ctx, bson.M{"steamID": steamID, "traded": true})
+	cursor, err := collection.Find(ctx, bson.M{"steamID": steamID, "traded": true})
 	if err != nil {
 		log.Printf("Error counting traded transactions for SteamID %s: %v", steamID, err)
 		return 0, err
 	}
-	return int(count), nil
+
+	var transactions []Transaction
+	if err = cursor.All(ctx, &transactions); err != nil {
+		log.Printf("Error decoding transactions for SteamID %s: %v", steamID, err)
+		return 0, err
+	}
+	count := 0
+	for _, txn := range transactions {
+		count += txn.Count
+	}
+
+	return count, nil
 }
 
 // getUserTransactions 根據 SteamID 獲取用戶的交易記錄
