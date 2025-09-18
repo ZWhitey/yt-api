@@ -163,7 +163,7 @@ func getUserOrderStats(steamID string) (completedOrders, activeOrders, payedAmou
 }
 
 func getUserTradedAmount(steamID string) (tradedAmount int, err error) {
-	collection := model.Db.Collection("transactions")
+	collection := model.Db.Collection("transcations")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
