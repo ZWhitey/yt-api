@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 // User 表示從 users collection 取得的用戶資料
@@ -54,6 +55,26 @@ type OrderV2 struct {
 		ProcessTime string `bson:"Process_time" json:"Process_time"`
 		Amt         int    `bson:"Amt" json:"Amt"`
 	} `bson:"OrderStatus" json:"OrderStatus"`
+}
+
+// Transaction 表示從 transactions collection 取得的交易資料
+type Transaction struct {
+	ID        string    `bson:"_id,omitempty" json:"_id,omitempty"`
+	SteamID   string    `bson:"steamID" json:"steamID"`
+	TradeID   string    `bson:"tradeId" json:"tradeId"`
+	Count     int       `bson:"Count" json:"Count"`
+	Traded    bool      `bson:"traded" json:"traded"`
+	CreatedAt time.Time `bson:"createdAt" json:"createdAt"`
+	UpdatedAt time.Time `bson:"updatedAt" json:"updatedAt"`
+	V         int       `bson:"__v" json:"__v"`
+}
+
+// TransactionResponse 表示交易記錄的回應格式
+type TransactionResponse struct {
+	ID        string `json:"id"`
+	Quantity  int    `json:"quantity"`
+	Status    string `json:"status"`
+	Timestamp string `json:"timestamp"`
 }
 
 // GetUsersHandler 處理 GET /api/v1/users 請求
@@ -146,12 +167,57 @@ func getUserTradedAmount(steamID string) (tradedAmount int, err error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	count, err := collection.CountDocuments(ctx, bson.M{"SteamID": steamID, "Traded": true})
+	count, err := collection.CountDocuments(ctx, bson.M{"steamID": steamID, "traded": true})
 	if err != nil {
 		log.Printf("Error counting traded transactions for SteamID %s: %v", steamID, err)
 		return 0, err
 	}
 	return int(count), nil
+}
+
+// getUserTransactions 根據 SteamID 獲取用戶的交易記錄
+func getUserTransactions(steamID string) ([]TransactionResponse, error) {
+	collection := model.Db.Collection("transcations")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 查詢該用戶的所有交易記錄，按時間倒序排列
+	cursor, err := collection.Find(ctx, bson.M{"steamID": steamID}, &options.FindOptions{
+		Sort: bson.D{{Key: "_id", Value: -1}},
+	})
+	if err != nil {
+		log.Printf("Error finding transactions for SteamID %s: %v", steamID, err)
+		return nil, err
+	}
+	defer cursor.Close(ctx)
+
+	var transactions []Transaction
+	if err = cursor.All(ctx, &transactions); err != nil {
+		log.Printf("Error decoding transactions for SteamID %s: %v", steamID, err)
+		return nil, err
+	}
+
+	// 轉換為回應格式
+	var response []TransactionResponse
+	for _, txn := range transactions {
+		status := "失敗"
+		if txn.Traded {
+			status = "成功"
+		}
+
+		// 格式化時間為 "YYYY-MM-DD HH:mm" 格式
+		timestamp := txn.CreatedAt.Format("2006-01-02 15:04")
+
+		response = append(response, TransactionResponse{
+			ID:        txn.TradeID, // 使用 tradeId 作為交易 ID
+			Quantity:  txn.Count,   // 使用 Count 作為數量
+			Status:    status,
+			Timestamp: timestamp,
+		})
+	}
+
+	return response, nil
 }
 
 // GetUserDetailHandler 處理 GET /api/v1/users/{id} 請求
@@ -213,4 +279,34 @@ func GetUserDetailHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, userDetail)
+}
+
+// GetUserTransactionsHandler 處理 GET /api/v1/users/{id}/transactions 請求
+func GetUserTransactionsHandler(c *gin.Context) {
+	steamID, exist := c.Get("steamID")
+	if !exist {
+		c.AbortWithStatusJSON(401, gin.H{"error": "authentication required"})
+		return
+	}
+
+	if !ADMIN_STEAM_ID_SET[steamID.(string)] {
+		c.AbortWithStatusJSON(403, gin.H{"error": "forbidden"})
+		return
+	}
+
+	targetId := c.Param("id")
+	if targetId == "" {
+		c.AbortWithStatusJSON(400, gin.H{"error": "steam id is required"})
+		return
+	}
+
+	// 獲取用戶的交易記錄
+	transactions, err := getUserTransactions(targetId)
+	if err != nil {
+		log.Printf("Error getting transactions for SteamID %s: %v", targetId, err)
+		c.AbortWithStatusJSON(500, gin.H{"error": "internal server error"})
+		return
+	}
+
+	c.JSON(http.StatusOK, transactions)
 }
