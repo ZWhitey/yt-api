@@ -20,8 +20,8 @@ type User struct {
 
 // UserResponse 表示 API 回傳的用戶資料格式
 type UserResponse struct {
-	SteamID string `json:"SteamID"`
-	Name    string `json:"Name"`
+	SteamID string `json:"steamId"`
+	Name    string `json:"name"`
 }
 
 // UserDetail 表示用戶詳細資料的回應格式
