@@ -35,6 +35,7 @@ func main() {
 	router.GET("/api/v2/orders", AuthMiddleware, GetOrderV2Handler)
 	router.GET("/api/v2/orders/:id", AuthMiddleware, GetOrderV2ByIDHandler)
 	router.GET("api/v1/user", AuthMiddleware, GetProfileHandler)
+	router.GET("/api/v1/users", GetUsersHandler)
 	router.POST("/api/v1/payment/cb", PaymentCallbackHandler)
 
 	router.Run(":" + port)
