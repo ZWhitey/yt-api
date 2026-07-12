@@ -51,10 +51,19 @@ func GetProfileHandler(c *gin.Context) {
 	defer cancel()
 
 	err = collection.FindOne(ctx, bson.M{"SteamID": steamID.(string)}).Decode(&profileData)
-	if err != nil && err != mongo.ErrNoDocuments {
-		log.Println("Error occurred while finding user profile:", err)
-		c.AbortWithStatusJSON(500, gin.H{"error": "internal server error"})
-		return
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			_, insertErr := collection.InsertOne(ctx, bson.M{"SteamID": steamID.(string)})
+			if insertErr != nil {
+				log.Println("Error occurred while creating user profile:", insertErr)
+				c.AbortWithStatusJSON(500, gin.H{"error": "internal server error"})
+				return
+			}
+		} else {
+			log.Println("Error occurred while finding user profile:", err)
+			c.AbortWithStatusJSON(500, gin.H{"error": "internal server error"})
+			return
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
