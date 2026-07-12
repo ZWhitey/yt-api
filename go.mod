@@ -2,10 +2,7 @@ module yt-api
 
 go 1.20
 
-require (
-	github.com/gin-contrib/sessions v0.0.5
-	github.com/redis/go-redis/v9 v9.11.0
-)
+require github.com/redis/go-redis/v9 v9.11.0
 
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -24,9 +21,6 @@ require (
 	github.com/goccy/go-json v0.10.0 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/golang/snappy v0.0.1 // indirect
-	github.com/gorilla/context v1.1.1 // indirect
-	github.com/gorilla/securecookie v1.1.1 // indirect
-	github.com/gorilla/sessions v1.2.1 // indirect
 	github.com/joho/godotenv v1.5.1
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/compress v1.13.6 // indirect
