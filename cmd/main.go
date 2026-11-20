@@ -29,6 +29,7 @@ func main() {
 	config.AllowCredentials = true
 	router.Use(cors.New(config))
 
+	router.GET("/health", HealthHandler)
 	router.GET("/api/v1/bot/status", GetPriceHandler)
 	router.GET("/auth", AuthHandler)
 	router.GET("/api/v1/orders", AuthMiddleware, GetOrderHandler)

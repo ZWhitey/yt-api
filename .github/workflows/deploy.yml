@@ -21,7 +21,7 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t zwhitey/yt-api:${{ env.VERSION }} .
+          docker build --build-arg VERSION=${{ env.VERSION }} -t zwhitey/yt-api:${{ env.VERSION }} .
 
       - name: Push Docker image
         run: |
