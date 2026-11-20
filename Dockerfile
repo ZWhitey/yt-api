@@ -16,6 +16,9 @@ FROM scratch
 
 WORKDIR /app
 
+ARG VERSION=unknown
+ENV VERSION=${VERSION}
+
 COPY --from=builder /app/main ./
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
