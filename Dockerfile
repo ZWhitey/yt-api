@@ -1,4 +1,4 @@
-FROM golang:1.20.2-alpine3.17 AS builder
+FROM golang:1.27-alpine3.23 AS builder
 
 WORKDIR /app
 
@@ -10,12 +10,13 @@ COPY ./cmd ./cmd
 
 COPY ./internal ./internal
 
-RUN go build -o main ./cmd
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o main ./cmd
 
-FROM alpine:3.17
+FROM scratch
 
 WORKDIR /app
 
 COPY --from=builder /app/main ./
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 
 CMD ["./main"]
